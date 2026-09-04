@@ -32,7 +32,7 @@ truncation_length = 18
 # Only show Node for actual Node projects. This avoids unnecessary `node
 # --version` calls in repos that just happen to contain JS/TS files.
 detect_extensions = []
-detect_files = ["package.json", ".node-version", ".nvmrc", ".tool-versions"]
+detect_files = ["package.json", ".node-version", ".nvmrc"]
 detect_folders = ["node_modules"]
 
 [package]
