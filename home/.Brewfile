@@ -39,10 +39,9 @@ brew "libyaml"
 brew "openssl@3"
 brew "readline"
 
-# Remote sessions and Moshi's tmux-based launcher.
+# Remote sessions and the Moshi hook. Herdr is the only multiplexer installed.
 brew "mosh"
 brew "rjyo/moshi/moshi-hook"
-brew "tmux"
 
 cask "1password"
 cask "1password-cli"

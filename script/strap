@@ -371,22 +371,20 @@ fi
 
 # Setup dotfiles
 if [ -n "$STRAP_GITHUB_USER" ]; then
-  DOTFILES_URL="${STRAP_DOTFILES_URL:-https://github.com/$STRAP_GITHUB_USER/dotfiles}"
+  DOTFILES_URL="${STRAP_DOTFILES_URL:-git@github.com:$STRAP_GITHUB_USER/dotfiles.git}"
 
   if [ -f "$HOME/.dotfiles/home/.Brewfile" ]; then
     log "Using the existing ~/.dotfiles checkout:"
-    if [ -d "$HOME/.dotfiles/.git" ] && git ls-remote "$DOTFILES_URL" &>/dev/null; then
-      (
-        cd "$HOME/.dotfiles"
-        git pull $Q --rebase --autostash
-      )
+    if [ -d "$HOME/.dotfiles/.git" ] &&
+      GIT_TERMINAL_PROMPT=0 git -C "$HOME/.dotfiles" ls-remote origin &>/dev/null; then
+      GIT_TERMINAL_PROMPT=0 git -C "$HOME/.dotfiles" pull $Q --rebase --autostash
     fi
     run_dotfile_scripts script/setup script/bootstrap
     logk
-  elif git ls-remote "$DOTFILES_URL" &>/dev/null; then
+  elif GIT_TERMINAL_PROMPT=0 git ls-remote "$DOTFILES_URL" &>/dev/null; then
     log "Fetching $STRAP_GITHUB_USER/dotfiles from GitHub:"
     log "Cloning to ~/.dotfiles:"
-    git clone $Q "$DOTFILES_URL" "$HOME/.dotfiles"
+    GIT_TERMINAL_PROMPT=0 git clone $Q "$DOTFILES_URL" "$HOME/.dotfiles"
     run_dotfile_scripts script/setup script/bootstrap
     logk
   else

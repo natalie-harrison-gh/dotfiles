@@ -36,7 +36,7 @@ These replace the common defaults — prefer the right column.
 | `find`              | `fd`             |                                                    |
 | `grep`              | `ripgrep` (`rg`) | flags in `home/.config/ripgrep/config`             |
 | `cd`                | `zoxide` (`z`)   | learns your dirs; inited in `.zsh/config`          |
-| `tmux`              | `herdr`          | primary multiplexer, prefix `C-;`; tmux kept for Moshi |
+| terminal multiplexer | `herdr`         | primary multiplexer, prefix `C-;`                     |
 | `top`               | `htop`           |                                                    |
 | `git diff`          | `delta`          | pager, side-by-side (in `.gitconfig`)              |
 | shell prompt        | `starship`       | config `home/.config/starship.toml`                |
@@ -66,9 +66,9 @@ install/ai.sh             # claude, codex, and agent skills
   `add-dotfiles-skill` skill.
 - **codex**: run `codex` once to sign in.
 
-Moshi is installed from its trusted Homebrew formula but pairing remains an
-intentional, interactive step. Run `moshi host setup`, then `moshi install`,
-then `brew services start moshi-hook`.
+Moshi's hook is installed from its trusted Homebrew formula but pairing remains
+an intentional, interactive step. This setup does not install tmux; Herdr is the
+only managed terminal multiplexer.
 
 ## Layout
 
