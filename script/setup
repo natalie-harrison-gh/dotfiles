@@ -60,6 +60,21 @@ for DOTFILE in .[^.]* .[^.]*/* .[^.]*/.[^.]* .[^.]*/[^.]*/[^.]*; do
       continue
     fi
 
+    # Codex owns and may protect ~/.codex. Keep its global instructions as a
+    # regular file so app permissions and sandbox grants never traverse a
+    # managed symlink.
+    if [[ "$DOTFILE" == ".codex/AGENTS.md" ]]; then
+      if [[ -f "$HOMEFILE" && ! -L "$HOMEFILE" ]] && cmp -s "$DIRFILE" "$HOMEFILE"; then
+        continue
+      fi
+      if [[ -e "$HOMEFILE" || -L "$HOMEFILE" ]]; then
+        backup_home_path "$DOTFILE"
+      fi
+      mkdir -p "$(dirname "$HOMEFILE")"
+      cp -v "$DIRFILE" "$HOMEFILE"
+      continue
+    fi
+
     if [[ -L "$HOMEFILE" && -e "$HOMEFILE" ]] && [[ "$HOMEFILE" -ef "$DIRFILE" ]]; then
       continue
     fi
