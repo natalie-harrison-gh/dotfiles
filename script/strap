@@ -395,14 +395,14 @@ fi
 # Install from local Brewfile
 if [ -f "$HOME/.Brewfile" ]; then
   log "Installing from ~/.Brewfile:"
-  brew bundle check --global &>/dev/null || brew bundle --global
+  brew bundle check --global &>/dev/null || brew bundle --verbose --global
   logk
 fi
 
 # Add GitHub credentials if missing
 if command -v "gh" >/dev/null && ! gh auth token &>/dev/null; then
   logn "Configuring GitHub CLI:"
-  gh auth login --git-protocol https --hostname github.com --web
+  gh auth login --git-protocol ssh --hostname github.com --web
   logk
 fi
 
