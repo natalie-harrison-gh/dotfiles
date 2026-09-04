@@ -25,6 +25,10 @@ set -e
 
 [[ "$1" = "--debug" || -o xtrace ]] && STRAP_DEBUG="1"
 STRAP_SUCCESS=""
+CLT_PLACEHOLDER=""
+HOMEBREW_INSTALLER=""
+SUDO_ASKPASS=""
+SUDO_ASKPASS_DIR=""
 
 sudo_askpass() {
   if [ -n "$SUDO_ASKPASS" ]; then
@@ -36,8 +40,18 @@ sudo_askpass() {
 
 cleanup() {
   set +e
-  sudo_askpass rm -rf "$CLT_PLACEHOLDER" "$HOMEBREW_INSTALLER" \
-    "$SUDO_ASKPASS" "$SUDO_ASKPASS_DIR"
+  if [ -n "$CLT_PLACEHOLDER" ]; then
+    sudo_askpass rm -f "$CLT_PLACEHOLDER"
+  fi
+  if [ -n "$HOMEBREW_INSTALLER" ]; then
+    rm -f "$HOMEBREW_INSTALLER"
+  fi
+  if [ -n "$SUDO_ASKPASS" ]; then
+    rm -f "$SUDO_ASKPASS"
+  fi
+  if [ -n "$SUDO_ASKPASS_DIR" ]; then
+    rmdir "$SUDO_ASKPASS_DIR" 2>/dev/null || true
+  fi
   sudo --reset-timestamp
   if [ -z "$STRAP_SUCCESS" ]; then
     if [ -n "$STRAP_STEP" ]; then
@@ -211,12 +225,8 @@ fi
 
 # Set some basic security settings.
 logn "Configuring security settings:"
-defaults write com.apple.Safari \
-  com.apple.Safari.ContentPageGroupIdentifier.WebKit2JavaEnabled \
-  -bool false
-defaults write com.apple.Safari \
-  com.apple.Safari.ContentPageGroupIdentifier.WebKit2JavaEnabledForLocalFiles \
-  -bool false
+# Safari's sandboxed preferences are protected on current macOS releases; the
+# old Java settings are obsolete and intentionally not managed here.
 defaults write com.apple.screensaver askForPassword -int 1
 defaults write com.apple.screensaver askForPasswordDelay -int 0
 sudo_askpass defaults write /Library/Preferences/com.apple.alf globalstate -int 1
