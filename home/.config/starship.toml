@@ -1,0 +1,39 @@
+# Give language-version commands more than Starship's default timeout and avoid
+# probing Node in repos that merely contain JS/TS files.
+command_timeout = 2000
+
+[buf]
+disabled = true
+
+[character]
+error_symbol = "[󰘧](bold red)"
+success_symbol = "[󰘧](bold green)"
+
+[directory]
+truncate_to_repo = false
+
+[dotnet]
+detect_files = ["global.json", "Directory.Build.props", "Directory.Build.targets", "Packages.props"]
+
+[git_branch]
+# disabled = true
+truncation_length = 18
+
+[git_status]
+# disabled = true
+
+[git_commit]
+# disabled = true
+
+[git_state]
+# disabled = true
+
+[nodejs]
+# Only show Node for actual Node projects. This avoids unnecessary `node
+# --version` calls in repos that just happen to contain JS/TS files.
+detect_extensions = []
+detect_files = ["package.json", ".node-version", ".nvmrc", ".tool-versions"]
+detect_folders = ["node_modules"]
+
+[package]
+disabled = true

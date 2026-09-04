@@ -1,0 +1,135 @@
+# find shorthand
+f() {
+  fd --hidden --glob "$1" .
+}
+
+# Start an HTTP server from a directory, optionally specifying the port
+static-server() {
+  local port="${1:-8000}"
+  open "http://localhost:${port}/"
+  python3 -m http.server $port
+}
+
+branch() {
+  if [ ! "$1" ]
+  then
+    echo "You must provide a branch name"
+    return
+  fi
+
+  git checkout master
+  git pull
+  git checkout -b $USER/$1
+}
+
+branch-main() {
+  if [ ! "$1" ]
+  then
+    echo "You must provide a branch name"
+    return
+  fi
+
+  git checkout main
+  git pull
+  git checkout -b $USER/$1
+}
+
+rebase-master() {
+  git fetch origin
+  git rebase --interactive --autostash --autosquash origin/master
+}
+
+rebase-main() {
+  git fetch origin
+  git rebase --interactive --autostash --autosquash origin/main
+}
+
+rebase-branch() {
+  if [ ! "$1" ]
+  then
+    echo "You must provide a branch name"
+    return
+  fi
+
+  git fetch origin
+  git rebase --interactive --autostash --autosquash origin/$1
+}
+
+rebase-continue() {
+  git add --all
+  git commit --no-edit
+  git rebase --continue
+}
+
+# Find processes running on port
+open-port() {
+  lsof -Pn -i4 | grep $1
+}
+
+function gh-clone() {
+  local repo_url=$1
+  local repo_host
+  local repo_path
+
+  # Validate the URL
+  if [[ $repo_url =~ "^(https?|git)[:@\/\/]+([^\/:]+)[\/:](.+)" ]]; then
+    repo_host=$match[2]
+    repo_path=$match[3]
+    repo_path="${repo_path:s/.git/}"
+  else
+    echo "invalid repo - format must be https://|git@host/|:account/name.git"
+    return 1
+  fi
+
+  local dest_folder="$HOME/src/$repo_host/$repo_path"
+  # Check if the destination folder exists
+  if [ -d "$dest_folder" ]; then
+    echo "$dest_folder: already exists"
+    cd "$dest_folder"
+    return 0
+  fi
+
+  # Create the directory
+  mkdir -p "$dest_folder"
+
+  # Clone the repo and cd into it
+  git clone "$repo_url" "$dest_folder"
+  cd "$dest_folder"
+}
+
+docker-debug() {
+  if [ -z "$1" ]; then
+    echo "usage: docker-debug CONTAINER-ID"
+    return 1
+  fi
+
+  echo "Starting debug sidecar for container $1"
+
+  [ ! -d "/tmp/debug-$1" ] && mkdir "/tmp/debug-$1"
+  echo "Mounting /scratch to /tmp/debug-$1"
+
+  docker run --rm -ti \
+    --name="debug-${1:0:6}" \
+    --workdir="/scratch" \
+    --volume="/tmp/debug-$1:/scratch" \
+    --pid="container:$1" \
+    --network="container:$1" \
+    --cap-add sys_admin \
+    --cap-add sys_ptrace \
+    hmarr/debug-tools
+}
+
+docker-debug-latest() {
+  docker-debug "$(docker ps --latest --quiet)"
+}
+
+function mkcd() {
+  if [ ! -n "$1" ]; then
+    echo "Provide a directory"
+    exit 1
+  elif [ -d $1 ]; then
+    cd $1
+  else
+    mkdir -p $@ && cd ${@:$#}
+  fi
+}

@@ -1,0 +1,89 @@
+[user]
+    name = Natalie Harrison
+    email = 155152226+natalie-harrison-gh@users.noreply.github.com
+
+[github]
+    user = natalie-harrison-gh
+
+[core]
+    excludesfile = ~/.gitignore
+    attributesfile = ~/.gitattributes
+    mergeoptions = --no-edit
+    commitGraph = true
+    pager = delta
+
+[init]
+    defaultBranch = main
+
+[push]
+    default = current
+
+[pull]
+    rebase = true
+
+[fetch]
+    prune = true
+
+[gc]
+    writeCommitGraph = true
+
+[rerere]
+    enabled = true
+
+[rebase]
+    autoStash = true
+    autoSquash = true
+
+[diff]
+    algorithm = patience
+    compactionheuristic = true
+
+[color]
+    ui = auto
+
+[alias]
+    all = add -A
+    c = commit -s
+    com = commit -s -m
+    d = diff
+    pullr = pull --rebase
+    pushf = push --force-if-includes
+    amd = commit --amend --no-edit -s
+    s = status -sb
+    co = checkout
+    cob = checkout -b
+    l = log --topo-order --decorate
+    lg = log --graph --pretty=format:'%Cred%h%Creset%C(yellow)%d%Creset %s %C(black bold)- %an %Cgreen(%cr)%Creset' --abbrev-commit --date=relative
+    unstage = reset HEAD
+    undo = reset HEAD~1 --mixed
+    grep = grep -nw
+    bra = !git branch --color -v | cut -c1-100
+    prune-remote = !git remote | xargs -n 1 git remote prune
+    prune-local = !git branch --merged | tr -d '*' | grep -v dev | xargs -n1 git branch -d
+    fix-conflict = mergetool
+    brup = "!git branch --set-upstream-to origin/\"$(git branch --show-current)\" \"$(git branch --show-current)\""
+
+[commit]
+    # Configure Natalie's own signing key before enabling commit.gpgsign.
+    gpgsign = false
+    verbose = true
+
+[delta]
+    side-by-side = true
+
+[interactive]
+    diffFilter = delta --color-only
+
+[protocol]
+    version = 2
+
+[credential]
+    helper = osxkeychain
+
+[credential "https://github.com"]
+    helper =
+    helper = !/usr/bin/env gh auth git-credential
+
+[credential "https://gist.github.com"]
+    helper =
+    helper = !/usr/bin/env gh auth git-credential

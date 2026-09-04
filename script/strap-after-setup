@@ -1,0 +1,20 @@
+#!/bin/bash
+set -e
+
+SCRIPTSREL=$(dirname "$0")
+
+[ $(uname -s) = "Darwin" ] && export MACOS=1
+
+# Enable Touch ID for sudo
+"$SCRIPTSREL/touchid-enable-pam-sudo" --quiet || true
+
+# Set zsh as the default shell
+if [ "$SHELL" != "/bin/zsh" ]
+then
+  chsh -s /bin/zsh $USER
+fi
+
+if [ $MACOS ]
+then
+  $SCRIPTSREL/../install/mac.sh
+fi

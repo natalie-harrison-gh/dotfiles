@@ -1,0 +1,17 @@
+alias ....="cd ../../.."
+alias ...="cd ../.."
+alias ..="cd .."
+alias cat="bat"
+alias cp="cp -irv"
+dir() { mkdir -p "$1" && cd "$1"; }
+alias e="$EDITOR ."
+alias g="git"
+alias l="eza -lha --no-user --color=always"
+alias mkdir="mkdir -vp"
+alias mmv="noglob zmv -vW"
+alias mv="mv -iv"
+alias rm="rm -iv"
+
+alias cleardns="sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
+alias edotfiles="$EDITOR ~/.dotfiles"
+alias externalip="dig +short myip.opendns.com @resolver1.opendns.com"

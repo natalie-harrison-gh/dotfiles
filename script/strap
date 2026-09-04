@@ -1,0 +1,414 @@
+#!/bin/bash
+#/ Usage: bin/strap.sh [--debug]
+#/ Install development dependencies on macOS.
+set -e
+
+# Copyright (C) 2015 by Mike McQuaid
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+[[ "$1" = "--debug" || -o xtrace ]] && STRAP_DEBUG="1"
+STRAP_SUCCESS=""
+
+sudo_askpass() {
+  if [ -n "$SUDO_ASKPASS" ]; then
+    sudo --askpass "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+cleanup() {
+  set +e
+  sudo_askpass rm -rf "$CLT_PLACEHOLDER" "$HOMEBREW_INSTALLER" \
+    "$SUDO_ASKPASS" "$SUDO_ASKPASS_DIR"
+  sudo --reset-timestamp
+  if [ -z "$STRAP_SUCCESS" ]; then
+    if [ -n "$STRAP_STEP" ]; then
+      echo "!!! $STRAP_STEP FAILED" >&2
+    else
+      echo "!!! FAILED" >&2
+    fi
+    if [ -z "$STRAP_DEBUG" ]; then
+      echo "!!! Run '$0 --debug' for debugging output." >&2
+    fi
+  fi
+}
+
+trap "cleanup" EXIT
+
+if [ -n "$STRAP_DEBUG" ]; then
+  set -x
+else
+  STRAP_QUIET_FLAG="-q"
+  Q="$STRAP_QUIET_FLAG"
+fi
+
+STDIN_FILE_DESCRIPTOR="0"
+[ -t "$STDIN_FILE_DESCRIPTOR" ] && STRAP_INTERACTIVE="1"
+
+STRAP_GIT_NAME="${STRAP_GIT_NAME:-Natalie Harrison}"
+STRAP_GIT_EMAIL="${STRAP_GIT_EMAIL:-155152226+natalie-harrison-gh@users.noreply.github.com}"
+STRAP_GITHUB_USER="${STRAP_GITHUB_USER:-natalie-harrison-gh}"
+# Optional public contact address for the macOS login-window recovery message.
+# Keep this separate from the Git commit address, which may be a noreply address.
+STRAP_CONTACT_EMAIL="${STRAP_CONTACT_EMAIL:-}"
+
+# We want to always prompt for sudo password at least once rather than doing
+# root stuff unexpectedly.
+sudo --reset-timestamp
+
+# functions for turning off debug for use when handling the user password
+clear_debug() {
+  set +x
+}
+
+reset_debug() {
+  if [ -n "$STRAP_DEBUG" ]; then
+    set -x
+  fi
+}
+
+# Initialise (or reinitialise) sudo to save unhelpful prompts later.
+sudo_init() {
+  if [ -z "$STRAP_INTERACTIVE" ]; then
+    return
+  fi
+
+  # If TouchID for sudo is setup: use that instead.
+  if grep -q pam_tid /etc/pam.d/sudo /etc/pam.d/sudo_local 2>/dev/null; then
+    return
+  fi
+
+  local SUDO_PASSWORD SUDO_PASSWORD_SCRIPT
+
+  if ! sudo --validate --non-interactive &>/dev/null; then
+    while true; do
+      read -rsp "--> Enter your password (for sudo access):" SUDO_PASSWORD
+      echo
+      if sudo --validate --stdin 2>/dev/null <<<"$SUDO_PASSWORD"; then
+        break
+      fi
+
+      unset SUDO_PASSWORD
+      echo "!!! Wrong password!" >&2
+    done
+
+    clear_debug
+    SUDO_PASSWORD_SCRIPT="$(cat <<BASH
+#!/bin/bash
+echo "$SUDO_PASSWORD"
+BASH
+)"
+    unset SUDO_PASSWORD
+    SUDO_ASKPASS_DIR="$(mktemp -d)"
+    SUDO_ASKPASS="$(mktemp "$SUDO_ASKPASS_DIR"/strap-askpass-XXXXXXXX)"
+    chmod 700 "$SUDO_ASKPASS_DIR" "$SUDO_ASKPASS"
+    bash -c "cat > '$SUDO_ASKPASS'" <<<"$SUDO_PASSWORD_SCRIPT"
+    unset SUDO_PASSWORD_SCRIPT
+    reset_debug
+
+    export SUDO_ASKPASS
+  fi
+}
+
+sudo_refresh() {
+  clear_debug
+  if [ -n "$SUDO_ASKPASS" ]; then
+    sudo --askpass --validate
+  else
+    sudo_init
+  fi
+  reset_debug
+}
+
+abort() { STRAP_STEP="";   echo "!!! $*" >&2; exit 1; }
+log()   { STRAP_STEP="$*"; sudo_refresh; echo "--> $*"; }
+logn()  { STRAP_STEP="$*"; sudo_refresh; printf -- "--> %s " "$*"; }
+logk()  { STRAP_STEP="";   echo "OK"; }
+logskip() {
+  STRAP_STEP=""
+  echo "SKIPPED"
+  echo "$*"
+}
+escape() {
+  printf '%s' "${1//\'/\'}"
+}
+
+# Given a list of scripts in the dotfiles repo, run the first one that exists
+run_dotfile_scripts() {
+  if [ -d ~/.dotfiles ]; then
+    (
+      cd ~/.dotfiles
+      for i in "$@"; do
+        if [ -f "$i" ] && [ -x "$i" ]; then
+          log "Running dotfiles $i:"
+          if [ -z "$STRAP_DEBUG" ]; then
+            "$i" 2>/dev/null
+          else
+            "$i"
+          fi
+          break
+        fi
+      done
+    )
+  fi
+}
+
+[ "$USER" = "root" ] && abort "Run Strap as yourself, not root."
+groups | grep $Q -E "\b(admin)\b" || abort "Add $USER to the admin group."
+
+# Prevent sleeping during script execution, as long as the machine is on AC power
+caffeinate -s -w $$ &
+
+# Check and, if necessary, enable sudo authentication using TouchID.
+# Don't care about non-alphanumeric filenames when doing a specific match
+# shellcheck disable=SC2010
+if ls /usr/lib/pam | grep $Q "pam_tid.so"; then
+  logn "Configuring sudo authentication using TouchID:"
+  if [[ -f /etc/pam.d/sudo_local || -f /etc/pam.d/sudo_local.template ]]; then
+    # New in macOS Sonoma, survives updates.
+    PAM_FILE="/etc/pam.d/sudo_local"
+    FIRST_LINE="# sudo_local: local config file which survives system update and is included for sudo"
+    if [[ ! -f "/etc/pam.d/sudo_local" ]]; then
+      echo "$FIRST_LINE" | sudo_askpass tee "$PAM_FILE" >/dev/null
+    fi
+  else
+    PAM_FILE="/etc/pam.d/sudo"
+    FIRST_LINE="# sudo: auth account password session"
+  fi
+
+  if grep $Q pam_tid.so "$PAM_FILE"; then
+    logk
+  elif ! head -n1 "$PAM_FILE" | grep $Q "$FIRST_LINE"; then
+    logskip "$PAM_FILE is not in the expected format!"
+  else
+    TOUCHID_LINE="auth       sufficient     pam_tid.so"
+    sudo_askpass sed -i .bak -e \
+      "s/$FIRST_LINE/$FIRST_LINE\n$TOUCHID_LINE/" \
+      "$PAM_FILE"
+    sudo_askpass rm "$PAM_FILE.bak"
+    logk
+  fi
+fi
+
+# Set some basic security settings.
+logn "Configuring security settings:"
+sudo_askpass defaults write com.apple.Safari \
+  com.apple.Safari.ContentPageGroupIdentifier.WebKit2JavaEnabled \
+  -bool false
+sudo_askpass defaults write com.apple.Safari \
+  com.apple.Safari.ContentPageGroupIdentifier.WebKit2JavaEnabledForLocalFiles \
+  -bool false
+sudo_askpass defaults write com.apple.screensaver askForPassword -int 1
+sudo_askpass defaults write com.apple.screensaver askForPasswordDelay -int 0
+sudo_askpass defaults write /Library/Preferences/com.apple.alf globalstate -int 1
+sudo_askpass launchctl load /System/Library/LaunchDaemons/com.apple.alf.agent.plist 2>/dev/null
+
+if [ -n "$STRAP_GIT_NAME" ] && [ -n "$STRAP_CONTACT_EMAIL" ]; then
+  LOGIN_TEXT=$(escape "Found this computer? Please contact $STRAP_GIT_NAME at $STRAP_CONTACT_EMAIL.")
+  if [[ $LOGIN_TEXT == *"("* || $LOGIN_TEXT == *")"* ]]; then
+    LOGIN_TEXT="'$LOGIN_TEXT'"
+  fi
+  sudo_askpass defaults write /Library/Preferences/com.apple.loginwindow \
+    LoginwindowText \
+    "$LOGIN_TEXT"
+fi
+logk
+
+# Check and enable full-disk encryption.
+logn "Checking full-disk encryption status:"
+if fdesetup status | grep $Q -E "FileVault is (On|Off, but will be enabled after the next restart)."; then
+  logk
+elif [ -n "$STRAP_CI" ]; then
+  echo "SKIPPED (for CI)"
+elif [ -n "$STRAP_INTERACTIVE" ]; then
+  echo
+  log "Enabling full-disk encryption on next reboot:"
+  sudo_askpass fdesetup enable -user "$USER" |
+    tee ~/Desktop/"FileVault Recovery Key.txt"
+  logk
+else
+  echo
+  abort "Run 'sudo fdesetup enable -user \"$USER\"' to enable full-disk encryption."
+fi
+
+# Install the Xcode Command Line Tools.
+if ! [ -f "/Library/Developer/CommandLineTools/usr/bin/git" ]; then
+  log "Installing the Xcode Command Line Tools:"
+  CLT_PLACEHOLDER="/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
+  sudo_askpass touch "$CLT_PLACEHOLDER"
+
+  CLT_PACKAGE=$(softwareupdate -l |
+    grep -B 1 "Command Line Tools" |
+    awk -F"*" '/^ *\*/ {print $2}' |
+    sed -e 's/^ *Label: //' -e 's/^ *//' |
+    sort -V |
+    tail -n1)
+  sudo_askpass softwareupdate -i "$CLT_PACKAGE"
+  sudo_askpass rm -f "$CLT_PLACEHOLDER"
+  if ! [ -f "/Library/Developer/CommandLineTools/usr/bin/git" ]; then
+    if [ -n "$STRAP_INTERACTIVE" ]; then
+      echo
+      logn "Requesting user install of Xcode Command Line Tools:"
+      xcode-select --install
+    else
+      echo
+      abort "Run 'xcode-select --install' to install the Xcode Command Line Tools."
+    fi
+  fi
+  logk
+fi
+
+# Check if the Xcode license is agreed to and agree if not.
+xcode_license() {
+  if /usr/bin/xcrun clang 2>&1 | grep $Q license; then
+    if [ -n "$STRAP_INTERACTIVE" ]; then
+      logn "Asking for Xcode license confirmation:"
+      sudo_askpass xcodebuild -license
+      logk
+    else
+      abort "Run 'sudo xcodebuild -license' to agree to the Xcode license."
+    fi
+  fi
+}
+xcode_license
+
+# Use HTTPS during bootstrap so a fresh Mac does not need an SSH key yet. These
+# temporary rewrites are removed before the user's dotfiles are installed.
+git config --global url."https://github.com/".insteadOf git@github.com:
+git config --global url."https://".insteadOf git://
+
+# Load either an existing Intel or Apple Silicon Homebrew installation. The
+# official installer chooses the correct prefix; this function only discovers
+# it and applies `brew shellenv` to the current process.
+setup_homebrew_env() {
+  local brew_bin=""
+
+  # Prefer the default prefix for the current process architecture if both an
+  # Intel and Apple Silicon Homebrew happen to be present.
+  case "$(uname -m)" in
+    arm64)  [ -x /opt/homebrew/bin/brew ] && brew_bin="/opt/homebrew/bin/brew" ;;
+    x86_64) [ -x /usr/local/bin/brew ] && brew_bin="/usr/local/bin/brew" ;;
+  esac
+
+  if [ -n "$brew_bin" ]; then
+    :
+  elif command -v brew >/dev/null 2>&1; then
+    brew_bin="$(command -v brew)"
+  elif [ -x /opt/homebrew/bin/brew ]; then
+    brew_bin="/opt/homebrew/bin/brew"
+  elif [ -x /usr/local/bin/brew ]; then
+    brew_bin="/usr/local/bin/brew"
+  else
+    return 1
+  fi
+
+  eval "$("$brew_bin" shellenv)"
+}
+
+if ! setup_homebrew_env; then
+  logn "Installing Homebrew:"
+  HOMEBREW_INSTALLER="$(mktemp "${TMPDIR:-/tmp}/homebrew-install.XXXXXXXX")"
+  curl --fail --silent --show-error --location \
+    https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh \
+    --output "$HOMEBREW_INSTALLER"
+  NONINTERACTIVE=1 /bin/bash "$HOMEBREW_INSTALLER"
+  rm -f "$HOMEBREW_INSTALLER"
+  HOMEBREW_INSTALLER=""
+  setup_homebrew_env || abort "Homebrew installed but its brew command was not found."
+  logk
+fi
+
+# Update Homebrew.
+log "Updating Homebrew:"
+brew update --quiet
+logk
+
+# Check and install any remaining software updates.
+logn "Checking for software updates:"
+if softwareupdate -l 2>&1 | grep $Q "No new software available."; then
+  logk
+else
+  echo
+  log "Installing software updates:"
+  if [ -z "$STRAP_CI" ] && [ -z "$STRAP_NO_SOFTWAREUPDATE" ]; then
+    sudo_askpass softwareupdate --install --all
+    xcode_license
+    logk
+  elif [ -n "$STRAP_CI" ]; then
+    echo "SKIPPED (for CI)"
+  else
+    echo "SKIPPED (by STRAP_NO_SOFTWAREUPDATE)"
+  fi
+fi
+
+# Revert temporary git config as script/setup copies a .gitconfig file.
+git config --global --unset-all url.https://github.com/.insteadof
+git config --global --unset-all url.https://.insteadof
+
+if [ -e "$HOME/.gitconfig" ] || [ -L "$HOME/.gitconfig" ]; then
+  echo "Backing up ~/.gitconfig to ~/.gitconfig.backup"
+  mv "$HOME/.gitconfig" "$HOME/.gitconfig.backup"
+fi
+
+# Setup dotfiles
+if [ -n "$STRAP_GITHUB_USER" ]; then
+  DOTFILES_URL="https://github.com/$STRAP_GITHUB_USER/dotfiles"
+
+  if [ -f "$HOME/.dotfiles/home/.Brewfile" ]; then
+    log "Using the existing ~/.dotfiles checkout:"
+    if [ -d "$HOME/.dotfiles/.git" ] && git ls-remote "$DOTFILES_URL" &>/dev/null; then
+      (
+        cd "$HOME/.dotfiles"
+        git pull $Q --rebase --autostash
+      )
+    fi
+    run_dotfile_scripts script/setup script/bootstrap
+    logk
+  elif git ls-remote "$DOTFILES_URL" &>/dev/null; then
+    log "Fetching $STRAP_GITHUB_USER/dotfiles from GitHub:"
+    log "Cloning to ~/.dotfiles:"
+    git clone $Q "$DOTFILES_URL" "$HOME/.dotfiles"
+    run_dotfile_scripts script/setup script/bootstrap
+    logk
+  else
+    abort "No ~/.dotfiles checkout or accessible $DOTFILES_URL repository was found."
+  fi
+fi
+
+# Install from local Brewfile
+if [ -f "$HOME/.Brewfile" ]; then
+  log "Installing from ~/.Brewfile:"
+  brew bundle check --global &>/dev/null || brew bundle --global
+  logk
+fi
+
+# Add GitHub credentials if missing
+if command -v "gh" >/dev/null && ! gh auth token &>/dev/null; then
+  logn "Configuring GitHub CLI:"
+  gh auth login --git-protocol https --hostname github.com --web
+  logk
+fi
+
+# Run post-install dotfiles script
+run_dotfile_scripts script/strap-after-setup
+
+STRAP_SUCCESS="1"
+log "Your system is now Strap'd!"

@@ -1,0 +1,106 @@
+# Load zsh massive renamer
+# autoload -U zmv
+
+# Turn off auto correct
+unsetopt correct_all
+
+# Don't hang up background jobs
+setopt no_hup
+
+# History
+export HISTFILE=~/.zhistory
+export HISTSIZE="100000"
+export SAVEHIST="100000"
+
+setopt append_history
+setopt hist_expire_dups_first
+setopt extended_history
+
+# Don't show duplicate history entires
+setopt hist_find_no_dups
+
+# Remove unnecessary blanks from history
+setopt hist_reduce_blanks
+
+# Share history between instances
+setopt share_history
+
+# Editor
+export EDITOR="zed"
+export GIT_EDITOR="$EDITOR --wait"
+export VISUAL=$EDITOR
+
+# Colored man pages
+# source: https://github.com/imkira/dotfiles/blob/master/.zsh/colored-man-pages.zsh
+export LESS_TERMCAP_mb=$'\E[01;31m'
+export LESS_TERMCAP_md=$'\E[01;38;5;74m'
+export LESS_TERMCAP_me=$'\E[0m'
+export LESS_TERMCAP_se=$'\E[0m'
+export LESS_TERMCAP_so=$'\E[38;33;246m'
+export LESS_TERMCAP_ue=$'\E[0m'
+export LESS_TERMCAP_us=$'\E[04;38;5;146m'
+
+# Match parallel builds to the current Intel or Apple Silicon Mac.
+_dotfiles_jobs="$(sysctl -n hw.logicalcpu 2>/dev/null || printf '4')"
+export MAKEFLAGS="-j$_dotfiles_jobs"
+export BUNDLE_JOBS="$_dotfiles_jobs"
+unset _dotfiles_jobs
+
+# Load ripgrep flags from ~/.config/ripgrep/config
+[ -f "$HOME/.config/ripgrep/config" ] && export RIPGREP_CONFIG_PATH="$HOME/.config/ripgrep/config"
+
+# Load Homebrew from the prefix matching this shell's architecture. Fall back to
+# PATH or the other standard prefix for custom and migration setups.
+_brew_bin=""
+case "$(uname -m)" in
+  arm64)  [[ -x /opt/homebrew/bin/brew ]] && _brew_bin="/opt/homebrew/bin/brew" ;;
+  x86_64) [[ -x /usr/local/bin/brew ]] && _brew_bin="/usr/local/bin/brew" ;;
+esac
+if [[ -z "$_brew_bin" ]] && command -v brew >/dev/null 2>&1; then
+  _brew_bin="$(command -v brew)"
+elif [[ -z "$_brew_bin" && -x /opt/homebrew/bin/brew ]]; then
+  _brew_bin="/opt/homebrew/bin/brew"
+elif [[ -z "$_brew_bin" && -x /usr/local/bin/brew ]]; then
+  _brew_bin="/usr/local/bin/brew"
+fi
+[[ -n "$_brew_bin" ]] && eval "$("$_brew_bin" shellenv)"
+unset _brew_bin
+
+if command -v brew >/dev/null 2>&1; then
+  export HOMEBREW_PREFIX="$(brew --prefix)"
+  PATH="$HOMEBREW_PREFIX/opt/gnu-sed/libexec/gnubin:$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin:$PATH"
+  PATH="$HOMEBREW_PREFIX/opt/openssl@3/bin:$PATH"
+fi
+
+PATH="$HOME/.local/bin:$PATH"
+PATH="$HOME/.cargo/bin:$PATH"
+PATH="$HOME/.bin:$PATH"
+export PATH="$HOME/bin:$PATH"
+
+# Add relative bins with highest precedent
+PATH="node_modules/.bin:$PATH"
+PATH=".bundle/bin:$PATH"
+export PATH="bin:$PATH"
+
+# Setup zoxide to replace cd
+command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init zsh)"
+
+# Load plugins
+if [[ -n "${HOMEBREW_PREFIX:-}" ]]; then
+  _fast_syntax="$HOMEBREW_PREFIX/opt/zsh-fast-syntax-highlighting/share/zsh-fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh"
+  _autosuggestions="$HOMEBREW_PREFIX/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
+  [[ -r "$_fast_syntax" ]] && source "$_fast_syntax"
+  [[ -r "$_autosuggestions" ]] && source "$_autosuggestions"
+  unset _fast_syntax _autosuggestions
+fi
+
+# asdf package manager
+export PATH="${ASDF_DATA_DIR:-$HOME/.asdf}/shims:$PATH"
+
+# Source rust/cargo env
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+
+# Load env variables from .envrc - to enable: `direnv allow .`
+command -v direnv >/dev/null 2>&1 && eval "$(direnv hook zsh)"
+
+command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"

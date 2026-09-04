@@ -1,0 +1,7 @@
+# Search hidden files and directories.
+--hidden
+
+# Skip very large blobs while retaining a preview for long lines.
+--max-filesize=5M
+--max-columns=150
+--max-columns-preview

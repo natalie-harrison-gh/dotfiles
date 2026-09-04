@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Add logging
+exec > >(tee -i $HOME/dotfiles_install.log)
+exec 2>&1
+set -x
+
+# Install all dotfiles into the home directory
+if [ -L "$0" ]
+then
+  SCRIPTSETUP="$(readlink "$0")"
+else
+  SCRIPTSETUP="$0"
+fi
+
+DOTFILESDIRREL=$(dirname $SCRIPTSETUP)
+cd $DOTFILESDIRREL/../home/
+DOTFILESDIR=$(pwd -P)
+
+[ $(uname -s) = "Darwin" ] && export MACOS=1 && export UNIX=1
+[ $(uname -s) = "Linux" ] && export LINUX=1 && export UNIX=1
+uname -s | grep -q "_NT-" && export WINDOWS=1
+
+if [ $MACOS ]
+then
+  echo "Installing from user Brewfile"
+  brew bundle check --file .Brewfile || brew bundle --file .Brewfile
+fi
+
+for DOTFILE in .[^.]* .[^.]*/* .[^.]*/.[^.]* .[^.]*/[^.]*/[^.]*; do
+  HOMEFILE="$HOME/$DOTFILE"
+  [ -d $DOTFILE ] && DOTFILE="$DOTFILE/"
+  DIRFILE="$DOTFILESDIR/$DOTFILE"
+  # Skip glob paths
+  [ ! -d $DIRFILE ] && [ ! -f $DIRFILE ] && continue
+
+  if [ $UNIX ]
+  then
+    if [ -L "$HOMEFILE" ] && ! [ -d $DOTFILE ]
+    then
+      ln -sfv "$DIRFILE" "$HOMEFILE"
+    else
+      if [ -d $DOTFILE ]
+      then
+        mkdir -p "$HOMEFILE"
+      else
+        rm -rv "$HOMEFILE" 2>/dev/null && true
+        ln -sv "$DIRFILE" "$HOMEFILE"
+      fi
+    fi
+  else
+    cp -rv "$DIRFILE" "$HOMEFILE"
+  fi
+done
