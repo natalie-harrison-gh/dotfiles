@@ -34,7 +34,6 @@ brew "starship"
 # runtime directly through Homebrew.
 brew "asdf"
 brew "gawk"
-brew "gnupg"
 brew "libyaml"
 brew "openssl@3"
 brew "readline"
