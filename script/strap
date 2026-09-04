@@ -153,20 +153,21 @@ escape() {
 
 # Given a list of scripts in the dotfiles repo, run the first one that exists
 run_dotfile_scripts() {
+  local script_found=""
+
   if [ -d ~/.dotfiles ]; then
     (
       cd ~/.dotfiles
       for i in "$@"; do
         if [ -f "$i" ] && [ -x "$i" ]; then
+          script_found="1"
           log "Running dotfiles $i:"
-          if [ -z "$STRAP_DEBUG" ]; then
-            "$i" 2>/dev/null
-          else
-            "$i"
-          fi
+          "$i"
           break
         fi
       done
+
+      [ -n "$script_found" ] || abort "No executable dotfiles setup script was found."
     )
   fi
 }
@@ -210,16 +211,20 @@ fi
 
 # Set some basic security settings.
 logn "Configuring security settings:"
-sudo_askpass defaults write com.apple.Safari \
+defaults write com.apple.Safari \
   com.apple.Safari.ContentPageGroupIdentifier.WebKit2JavaEnabled \
   -bool false
-sudo_askpass defaults write com.apple.Safari \
+defaults write com.apple.Safari \
   com.apple.Safari.ContentPageGroupIdentifier.WebKit2JavaEnabledForLocalFiles \
   -bool false
-sudo_askpass defaults write com.apple.screensaver askForPassword -int 1
-sudo_askpass defaults write com.apple.screensaver askForPasswordDelay -int 0
+defaults write com.apple.screensaver askForPassword -int 1
+defaults write com.apple.screensaver askForPasswordDelay -int 0
 sudo_askpass defaults write /Library/Preferences/com.apple.alf globalstate -int 1
-sudo_askpass launchctl load /System/Library/LaunchDaemons/com.apple.alf.agent.plist 2>/dev/null
+if [ -f /System/Library/LaunchDaemons/com.apple.alf.agent.plist ] && \
+  ! sudo_askpass launchctl print system/com.apple.alf.agent &>/dev/null; then
+  sudo_askpass launchctl load \
+    /System/Library/LaunchDaemons/com.apple.alf.agent.plist 2>/dev/null
+fi
 
 if [ -n "$STRAP_GIT_NAME" ] && [ -n "$STRAP_CONTACT_EMAIL" ]; then
   LOGIN_TEXT=$(escape "Found this computer? Please contact $STRAP_GIT_NAME at $STRAP_CONTACT_EMAIL.")
@@ -290,11 +295,6 @@ xcode_license() {
 }
 xcode_license
 
-# Use HTTPS during bootstrap so a fresh Mac does not need an SSH key yet. These
-# temporary rewrites are removed before the user's dotfiles are installed.
-git config --global url."https://github.com/".insteadOf git@github.com:
-git config --global url."https://".insteadOf git://
-
 # Load either an existing Intel or Apple Silicon Homebrew installation. The
 # official installer chooses the correct prefix; this function only discovers
 # it and applies `brew shellenv` to the current process.
@@ -359,18 +359,9 @@ else
   fi
 fi
 
-# Revert temporary git config as script/setup copies a .gitconfig file.
-git config --global --unset-all url.https://github.com/.insteadof
-git config --global --unset-all url.https://.insteadof
-
-if [ -e "$HOME/.gitconfig" ] || [ -L "$HOME/.gitconfig" ]; then
-  echo "Backing up ~/.gitconfig to ~/.gitconfig.backup"
-  mv "$HOME/.gitconfig" "$HOME/.gitconfig.backup"
-fi
-
 # Setup dotfiles
 if [ -n "$STRAP_GITHUB_USER" ]; then
-  DOTFILES_URL="https://github.com/$STRAP_GITHUB_USER/dotfiles"
+  DOTFILES_URL="${STRAP_DOTFILES_URL:-https://github.com/$STRAP_GITHUB_USER/dotfiles}"
 
   if [ -f "$HOME/.dotfiles/home/.Brewfile" ]; then
     log "Using the existing ~/.dotfiles checkout:"
@@ -410,5 +401,5 @@ fi
 # Run post-install dotfiles script
 run_dotfile_scripts script/strap-after-setup
 
-STRAP_SUCCESS="1"
 log "Your system is now Strap'd!"
+STRAP_SUCCESS="1"

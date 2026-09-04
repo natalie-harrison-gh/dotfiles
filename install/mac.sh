@@ -4,6 +4,7 @@
 # settings we’re about to change
 osascript -e 'tell application "System Settings" to quit'
 
+set -o errexit
 set -o errtrace
 set -o nounset
 set -o pipefail
@@ -241,5 +242,5 @@ for app in "Activity Monitor" \
 	"Photos" \
 	"SystemUIServer" \
 	"Transmission"; do
-	killall "${app}" &> /dev/null
+	killall "${app}" &> /dev/null || true
 done

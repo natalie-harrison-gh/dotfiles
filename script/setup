@@ -1,53 +1,80 @@
 #!/usr/bin/env bash
-# Add logging
-exec > >(tee -i $HOME/dotfiles_install.log)
-exec 2>&1
-set -x
+# Install Homebrew dependencies and link managed dotfiles without deleting
+# pre-existing user files. Any collision is moved into a timestamped backup.
+set -Eeuo pipefail
 
-# Install all dotfiles into the home directory
-if [ -L "$0" ]
-then
-  SCRIPTSETUP="$(readlink "$0")"
-else
-  SCRIPTSETUP="$0"
+if [[ -n "${DOTFILES_DEBUG:-}" ]]; then
+  set -x
 fi
 
-DOTFILESDIRREL=$(dirname $SCRIPTSETUP)
-cd $DOTFILESDIRREL/../home/
-DOTFILESDIR=$(pwd -P)
+if [[ -L "${BASH_SOURCE[0]}" ]]; then
+  SCRIPTSETUP="$(readlink "${BASH_SOURCE[0]}")"
+else
+  SCRIPTSETUP="${BASH_SOURCE[0]}"
+fi
 
-[ $(uname -s) = "Darwin" ] && export MACOS=1 && export UNIX=1
-[ $(uname -s) = "Linux" ] && export LINUX=1 && export UNIX=1
-uname -s | grep -q "_NT-" && export WINDOWS=1
+DOTFILESDIRREL="$(dirname "$SCRIPTSETUP")"
+cd "$DOTFILESDIRREL/../home"
+DOTFILESDIR="$(pwd -P)"
 
-if [ $MACOS ]
-then
+case "$(uname -s)" in
+  Darwin) export MACOS=1 UNIX=1 ;;
+  Linux) export LINUX=1 UNIX=1 ;;
+  *_NT-*) export WINDOWS=1 ;;
+esac
+
+if [[ -n "${MACOS:-}" && -z "${DOTFILES_SKIP_BREW:-}" ]]; then
   echo "Installing from user Brewfile"
   brew bundle check --file .Brewfile || brew bundle --file .Brewfile
 fi
 
+BACKUP_ROOT="${DOTFILES_BACKUP_ROOT:-$HOME/.dotfiles-backups/$(date +%Y%m%d-%H%M%S)-$$}"
+BACKUP_CREATED=""
+
+backup_home_path() {
+  local relative_path="$1"
+  local home_path="$HOME/$relative_path"
+  local backup_path="$BACKUP_ROOT/$relative_path"
+
+  mkdir -p "$(dirname "$backup_path")"
+  mv "$home_path" "$backup_path"
+  BACKUP_CREATED="1"
+  echo "Backed up $home_path to $backup_path"
+}
+
 for DOTFILE in .[^.]* .[^.]*/* .[^.]*/.[^.]* .[^.]*/[^.]*/[^.]*; do
   HOMEFILE="$HOME/$DOTFILE"
-  [ -d $DOTFILE ] && DOTFILE="$DOTFILE/"
   DIRFILE="$DOTFILESDIR/$DOTFILE"
-  # Skip glob paths
-  [ ! -d $DIRFILE ] && [ ! -f $DIRFILE ] && continue
 
-  if [ $UNIX ]
-  then
-    if [ -L "$HOMEFILE" ] && ! [ -d $DOTFILE ]
-    then
-      ln -sfv "$DIRFILE" "$HOMEFILE"
-    else
-      if [ -d $DOTFILE ]
-      then
-        mkdir -p "$HOMEFILE"
-      else
-        rm -rv "$HOMEFILE" 2>/dev/null && true
-        ln -sv "$DIRFILE" "$HOMEFILE"
+  # Skip unmatched glob patterns.
+  [[ -e "$DIRFILE" || -L "$DIRFILE" ]] || continue
+
+  if [[ -n "${UNIX:-}" ]]; then
+    if [[ -d "$DIRFILE" ]]; then
+      if [[ -e "$HOMEFILE" || -L "$HOMEFILE" ]]; then
+        if [[ ! -d "$HOMEFILE" || -L "$HOMEFILE" ]]; then
+          backup_home_path "$DOTFILE"
+        fi
       fi
+      mkdir -p "$HOMEFILE"
+      continue
     fi
+
+    if [[ -L "$HOMEFILE" && -e "$HOMEFILE" ]] && [[ "$HOMEFILE" -ef "$DIRFILE" ]]; then
+      continue
+    fi
+
+    if [[ -e "$HOMEFILE" || -L "$HOMEFILE" ]]; then
+      backup_home_path "$DOTFILE"
+    fi
+
+    mkdir -p "$(dirname "$HOMEFILE")"
+    ln -sv "$DIRFILE" "$HOMEFILE"
   else
     cp -rv "$DIRFILE" "$HOMEFILE"
   fi
 done
+
+if [[ -n "$BACKUP_CREATED" ]]; then
+  echo "Existing dotfiles were preserved in $BACKUP_ROOT"
+fi

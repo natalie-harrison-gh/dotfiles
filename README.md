@@ -6,11 +6,11 @@ The bootstrap supports both Intel and Apple Silicon Macs.
 
 ## Install
 
-Place this checkout at `~/.dotfiles`, or publish it to the target GitHub account
-and clone it there:
+Place this checkout at `~/.dotfiles`, or clone it with the SSH key managed by
+the 1Password SSH agent:
 
 ```bash
-git clone https://github.com/natalie-harrison-gh/dotfiles.git ~/.dotfiles && cd ~/.dotfiles
+git clone git@github.com:natalie-harrison-gh/dotfiles.git ~/.dotfiles && cd ~/.dotfiles
 script/strap
 ```
 
