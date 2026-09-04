@@ -293,6 +293,12 @@ fi
 
 # Check if the Xcode license is agreed to and agree if not.
 xcode_license() {
+  local clang_path
+
+  # Apple caches xcrun tool lookups. A stale entry can point clang back at
+  # Homebrew's own compiler shim, causing an infinite source-build loop.
+  /usr/bin/xcrun --kill-cache 2>/dev/null || true
+
   if /usr/bin/xcrun clang 2>&1 | grep $Q license; then
     if [ -n "$STRAP_INTERACTIVE" ]; then
       logn "Asking for Xcode license confirmation:"
@@ -302,8 +308,18 @@ xcode_license() {
       abort "Run 'sudo xcodebuild -license' to agree to the Xcode license."
     fi
   fi
+
+  clang_path="$(/usr/bin/xcrun --find clang)" || abort "Xcode Command Line Tools clang was not found."
+  case "$clang_path" in
+    */Homebrew/*/shims/*) abort "xcrun resolved clang to a Homebrew shim after its cache was reset." ;;
+  esac
 }
 xcode_license
+
+# Prefer Apple's Git while bootstrapping. A partially completed Homebrew bundle
+# can leave brewed Git present but temporarily unusable until source-built
+# libraries such as PCRE2 finish installing.
+GIT_BIN="/usr/bin/git"
 
 # Load either an existing Intel or Apple Silicon Homebrew installation. The
 # official installer chooses the correct prefix; this function only discovers
@@ -376,15 +392,15 @@ if [ -n "$STRAP_GITHUB_USER" ]; then
   if [ -f "$HOME/.dotfiles/home/.Brewfile" ]; then
     log "Using the existing ~/.dotfiles checkout:"
     if [ -d "$HOME/.dotfiles/.git" ] &&
-      GIT_TERMINAL_PROMPT=0 git -C "$HOME/.dotfiles" ls-remote origin &>/dev/null; then
-      GIT_TERMINAL_PROMPT=0 git -C "$HOME/.dotfiles" pull $Q --rebase --autostash
+      GIT_TERMINAL_PROMPT=0 "$GIT_BIN" -C "$HOME/.dotfiles" ls-remote origin &>/dev/null; then
+      GIT_TERMINAL_PROMPT=0 "$GIT_BIN" -C "$HOME/.dotfiles" pull $Q --rebase --autostash
     fi
     run_dotfile_scripts script/setup script/bootstrap
     logk
-  elif GIT_TERMINAL_PROMPT=0 git ls-remote "$DOTFILES_URL" &>/dev/null; then
+  elif GIT_TERMINAL_PROMPT=0 "$GIT_BIN" ls-remote "$DOTFILES_URL" &>/dev/null; then
     log "Fetching $STRAP_GITHUB_USER/dotfiles from GitHub:"
     log "Cloning to ~/.dotfiles:"
-    GIT_TERMINAL_PROMPT=0 git clone $Q "$DOTFILES_URL" "$HOME/.dotfiles"
+    GIT_TERMINAL_PROMPT=0 "$GIT_BIN" clone $Q "$DOTFILES_URL" "$HOME/.dotfiles"
     run_dotfile_scripts script/setup script/bootstrap
     logk
   else
