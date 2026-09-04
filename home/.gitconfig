@@ -1,6 +1,7 @@
 [user]
     name = Natalie Harrison
     email = 155152226+natalie-harrison-gh@users.noreply.github.com
+    signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHSWQVwC05zXdt3msqYVnmPTSpARayZVdamIQT/5MgmQ
 
 [github]
     user = natalie-harrison-gh
@@ -64,9 +65,14 @@
     brup = "!git branch --set-upstream-to origin/\"$(git branch --show-current)\" \"$(git branch --show-current)\""
 
 [commit]
-    # Configure Natalie's own signing key before enabling commit.gpgsign.
-    gpgsign = false
+    gpgsign = true
     verbose = true
+
+[gpg]
+    format = ssh
+
+[gpg "ssh"]
+    program = /Applications/1Password.app/Contents/MacOS/op-ssh-sign
 
 [delta]
     side-by-side = true
