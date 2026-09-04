@@ -26,6 +26,10 @@ esac
 if [[ -n "${MACOS:-}" && -z "${DOTFILES_SKIP_BREW:-}" ]]; then
   echo "Installing from user Brewfile"
   brew bundle check --file .Brewfile || brew bundle --verbose --file .Brewfile
+
+  if [[ "$(uname -m)" == "x86_64" ]]; then
+    "$DOTFILESDIR/../install/github-cli.sh"
+  fi
 fi
 
 BACKUP_ROOT="${DOTFILES_BACKUP_ROOT:-$HOME/.dotfiles-backups/$(date +%Y%m%d-%H%M%S)-$$}"

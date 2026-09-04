@@ -399,6 +399,9 @@ if [ -f "$HOME/.Brewfile" ]; then
   logk
 fi
 
+# Intel setup installs GitHub CLI here instead of building it with Homebrew.
+export PATH="$HOME/.local/bin:$PATH"
+
 # Add GitHub credentials if missing
 if command -v "gh" >/dev/null && ! gh auth token &>/dev/null; then
   logn "Configuring GitHub CLI:"

@@ -20,7 +20,7 @@ brew "zsh-fast-syntax-highlighting"
 
 # Git and coding-agent support.
 brew "direnv"
-brew "gh"
+brew "gh" if Hardware::CPU.arm?
 brew "git"
 brew "git-delta"
 brew "herdr"
@@ -52,8 +52,7 @@ cask "google-drive"
 cask "iina"
 cask "losslesscut"
 cask "orbstack"
-# Raycast's current cask is Apple-Silicon-only; skip it cleanly on Intel Macs.
-cask "raycast" if Hardware::CPU.arm?
+cask "raycast"
 cask "shottr"
 cask "spotify"
 cask "transmission"

@@ -19,10 +19,11 @@ not have to exist before the first run.
 
 `script/strap` installs the Xcode Command Line Tools and Homebrew when needed,
 loads Homebrew from the correct prefix for the current Mac, and applies
-`home/.Brewfile`. Raycast is skipped on Intel because its current Homebrew cask
-requires Apple Silicon; the rest of the Brewfile is shared. Homebrew no longer
-publishes Intel bottles for every formula, so an Intel bootstrap may compile a
-few packages from source; Strap installs the Xcode Command Line Tools first for
+`home/.Brewfile`. On Intel, setup installs the official GitHub CLI release in
+`~/.local/bin` after verifying its published SHA-256 checksum; Apple Silicon
+continues to install `gh` with Homebrew. Homebrew no longer publishes Intel
+bottles for every formula, so an Intel bootstrap may compile a few other
+packages from source; Strap installs the Xcode Command Line Tools first for
 that path.
 
 ## Tools
