@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# shellcheck source=script/platform.sh
+. "$(dirname "$0")/../script/platform.sh" || exit 1
+
 # Restore agent skills from skills/manifest.txt via `npx skills`, then install the
 # repo's own custom skills. Skills install globally and symlink into ~/.claude/skills.
 #   install/skills.sh             restore from manifest + custom skills

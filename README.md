@@ -2,29 +2,35 @@
 
 Personal macOS dotfiles for the `natalieharrison` account and the
 [`natalie-harrison-gh`](https://github.com/natalie-harrison-gh) GitHub account.
-The bootstrap supports both Intel and Apple Silicon Macs.
+Supports Apple Silicon Macs only, using a native arm64 terminal and Homebrew
+at `/opt/homebrew`. Provisioning stops immediately on unsupported systems or
+when the terminal runs under Rosetta.
 
 ## Install
 
-Place this checkout at `~/.dotfiles`, or clone it with the SSH key managed by
-the 1Password SSH agent:
+Install Apple's Command Line Tools if Git is not yet available, then clone:
 
 ```bash
-git clone git@github.com:natalie-harrison-gh/dotfiles.git ~/.dotfiles && cd ~/.dotfiles
+xcode-select --install  # only if the Command Line Tools are missing; wait for installation
+git clone https://github.com/natalie-harrison-gh/dotfiles.git ~/.dotfiles
+cd ~/.dotfiles
 script/strap
 ```
 
-The bootstrap accepts the existing local checkout, so the GitHub repository does
-not have to exist before the first run.
-
 `script/strap` installs the Xcode Command Line Tools and Homebrew when needed,
-loads Homebrew from the correct prefix for the current Mac, and applies
-`home/.Brewfile`. On Intel, setup installs the official GitHub CLI release in
-`~/.local/bin` after verifying its published SHA-256 checksum; Apple Silicon
-continues to install `gh` with Homebrew. Homebrew no longer publishes Intel
-bottles for every formula, so an Intel bootstrap may compile a few other
-packages from source; Strap installs the Xcode Command Line Tools first for
-that path.
+loads `/opt/homebrew`, and applies `home/.Brewfile`, including GitHub CLI (`gh`).
+It also configures Touch ID, security settings, macOS preferences, and GitHub
+authentication. Run it when you are ready to provision the Mac.
+
+To link the dotfiles without installing software or applying macOS preferences:
+
+```bash
+DOTFILES_SKIP_BREW=1 script/setup
+```
+
+Existing files are moved to `~/.dotfiles-backups/<timestamp>-<pid>/` before being
+replaced. Re-running setup leaves correct links alone. Codex's global
+`~/.codex/AGENTS.md` is copied as a regular file.
 
 ## Tools
 
@@ -68,8 +74,7 @@ install/ai.sh             # claude, codex, and agent skills
 - **codex**: run `codex` once to sign in.
 
 Moshi's hook is installed from its trusted Homebrew formula but pairing remains
-an intentional, interactive step. This setup does not install tmux; Herdr is the
-only managed terminal multiplexer.
+an intentional, interactive step. Herdr is the only managed terminal multiplexer.
 
 ## Layout
 

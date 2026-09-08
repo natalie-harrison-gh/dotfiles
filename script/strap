@@ -1,5 +1,8 @@
 #!/bin/bash
-#/ Usage: bin/strap.sh [--debug]
+# shellcheck source=script/platform.sh
+. "$(dirname "$0")/platform.sh" || exit 1
+
+#/ Usage: script/strap [--debug]
 #/ Install development dependencies on macOS.
 set -e
 
@@ -67,11 +70,11 @@ cleanup() {
 
 trap "cleanup" EXIT
 
+QUIET_ARGS=()
 if [ -n "$STRAP_DEBUG" ]; then
   set -x
 else
-  STRAP_QUIET_FLAG="-q"
-  Q="$STRAP_QUIET_FLAG"
+  QUIET_ARGS=(-q)
 fi
 
 STDIN_FILE_DESCRIPTOR="0"
@@ -187,7 +190,7 @@ run_dotfile_scripts() {
 }
 
 [ "$USER" = "root" ] && abort "Run Strap as yourself, not root."
-groups | grep $Q -E "\b(admin)\b" || abort "Add $USER to the admin group."
+groups | grep "${QUIET_ARGS[@]}" -E "\b(admin)\b" || abort "Add $USER to the admin group."
 
 # Prevent sleeping during script execution, as long as the machine is on AC power
 caffeinate -s -w $$ &
@@ -195,7 +198,7 @@ caffeinate -s -w $$ &
 # Check and, if necessary, enable sudo authentication using TouchID.
 # Don't care about non-alphanumeric filenames when doing a specific match
 # shellcheck disable=SC2010
-if ls /usr/lib/pam | grep $Q "pam_tid.so"; then
+if ls /usr/lib/pam | grep "${QUIET_ARGS[@]}" "pam_tid.so"; then
   logn "Configuring sudo authentication using TouchID:"
   if [[ -f /etc/pam.d/sudo_local || -f /etc/pam.d/sudo_local.template ]]; then
     # New in macOS Sonoma, survives updates.
@@ -209,9 +212,9 @@ if ls /usr/lib/pam | grep $Q "pam_tid.so"; then
     FIRST_LINE="# sudo: auth account password session"
   fi
 
-  if grep $Q pam_tid.so "$PAM_FILE"; then
+  if grep "${QUIET_ARGS[@]}" pam_tid.so "$PAM_FILE"; then
     logk
-  elif ! head -n1 "$PAM_FILE" | grep $Q "$FIRST_LINE"; then
+  elif ! head -n1 "$PAM_FILE" | grep "${QUIET_ARGS[@]}" "$FIRST_LINE"; then
     logskip "$PAM_FILE is not in the expected format!"
   else
     TOUCHID_LINE="auth       sufficient     pam_tid.so"
@@ -249,7 +252,7 @@ logk
 
 # Check and enable full-disk encryption.
 logn "Checking full-disk encryption status:"
-if fdesetup status | grep $Q -E "FileVault is (On|Off, but will be enabled after the next restart)."; then
+if fdesetup status | grep "${QUIET_ARGS[@]}" -E "FileVault is (On|Off, but will be enabled after the next restart)."; then
   logk
 elif [ -n "$STRAP_CI" ]; then
   echo "SKIPPED (for CI)"
@@ -299,7 +302,7 @@ xcode_license() {
   # Homebrew's own compiler shim, causing an infinite source-build loop.
   /usr/bin/xcrun --kill-cache 2>/dev/null || true
 
-  if /usr/bin/xcrun clang 2>&1 | grep $Q license; then
+  if /usr/bin/xcrun clang 2>&1 | grep "${QUIET_ARGS[@]}" license; then
     if [ -n "$STRAP_INTERACTIVE" ]; then
       logn "Asking for Xcode license confirmation:"
       sudo_askpass xcodebuild -license
@@ -321,32 +324,12 @@ xcode_license
 # libraries such as PCRE2 finish installing.
 GIT_BIN="/usr/bin/git"
 
-# Load either an existing Intel or Apple Silicon Homebrew installation. The
-# official installer chooses the correct prefix; this function only discovers
-# it and applies `brew shellenv` to the current process.
+# Apple Silicon Homebrew always lives in /opt/homebrew.
 setup_homebrew_env() {
-  local brew_bin=""
-
-  # Prefer the default prefix for the current process architecture if both an
-  # Intel and Apple Silicon Homebrew happen to be present.
-  case "$(uname -m)" in
-    arm64)  [ -x /opt/homebrew/bin/brew ] && brew_bin="/opt/homebrew/bin/brew" ;;
-    x86_64) [ -x /usr/local/bin/brew ] && brew_bin="/usr/local/bin/brew" ;;
-  esac
-
-  if [ -n "$brew_bin" ]; then
-    :
-  elif command -v brew >/dev/null 2>&1; then
-    brew_bin="$(command -v brew)"
-  elif [ -x /opt/homebrew/bin/brew ]; then
-    brew_bin="/opt/homebrew/bin/brew"
-  elif [ -x /usr/local/bin/brew ]; then
-    brew_bin="/usr/local/bin/brew"
-  else
-    return 1
-  fi
-
-  eval "$("$brew_bin" shellenv)"
+  [ -x /opt/homebrew/bin/brew ] || return 1
+  local brew_env
+  brew_env="$(/opt/homebrew/bin/brew shellenv)" || return 1
+  eval "$brew_env"
 }
 
 if ! setup_homebrew_env; then
@@ -369,7 +352,7 @@ logk
 
 # Check and install any remaining software updates.
 logn "Checking for software updates:"
-if softwareupdate -l 2>&1 | grep $Q "No new software available."; then
+if softwareupdate -l 2>&1 | grep "${QUIET_ARGS[@]}" "No new software available."; then
   logk
 else
   echo
@@ -393,14 +376,14 @@ if [ -n "$STRAP_GITHUB_USER" ]; then
     log "Using the existing ~/.dotfiles checkout:"
     if [ -d "$HOME/.dotfiles/.git" ] &&
       GIT_TERMINAL_PROMPT=0 "$GIT_BIN" -C "$HOME/.dotfiles" ls-remote origin &>/dev/null; then
-      GIT_TERMINAL_PROMPT=0 "$GIT_BIN" -C "$HOME/.dotfiles" pull $Q --rebase --autostash
+      GIT_TERMINAL_PROMPT=0 "$GIT_BIN" -C "$HOME/.dotfiles" pull "${QUIET_ARGS[@]}" --rebase --autostash
     fi
     run_dotfile_scripts script/setup script/bootstrap
     logk
   elif GIT_TERMINAL_PROMPT=0 "$GIT_BIN" ls-remote "$DOTFILES_URL" &>/dev/null; then
     log "Fetching $STRAP_GITHUB_USER/dotfiles from GitHub:"
     log "Cloning to ~/.dotfiles:"
-    GIT_TERMINAL_PROMPT=0 "$GIT_BIN" clone $Q "$DOTFILES_URL" "$HOME/.dotfiles"
+    GIT_TERMINAL_PROMPT=0 "$GIT_BIN" clone "${QUIET_ARGS[@]}" "$DOTFILES_URL" "$HOME/.dotfiles"
     run_dotfile_scripts script/setup script/bootstrap
     logk
   else
@@ -414,9 +397,6 @@ if [ -f "$HOME/.Brewfile" ]; then
   brew bundle check --global &>/dev/null || brew bundle --verbose --global
   logk
 fi
-
-# Intel setup installs GitHub CLI here instead of building it with Homebrew.
-export PATH="$HOME/.local/bin:$PATH"
 
 # Add GitHub credentials if missing
 if command -v "gh" >/dev/null && ! gh auth token &>/dev/null; then

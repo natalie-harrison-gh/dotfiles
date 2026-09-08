@@ -1,9 +1,10 @@
 #!/bin/bash
+# shellcheck source=script/platform.sh
+. "$(dirname "$0")/platform.sh" || exit 1
+
 set -e
 
 SCRIPTSREL=$(dirname "$0")
-
-[ $(uname -s) = "Darwin" ] && export MACOS=1
 
 # Enable Touch ID for sudo
 "$SCRIPTSREL/touchid-enable-pam-sudo" --quiet || true
@@ -11,10 +12,7 @@ SCRIPTSREL=$(dirname "$0")
 # Set zsh as the default shell
 if [ "$SHELL" != "/bin/zsh" ]
 then
-  chsh -s /bin/zsh $USER
+  chsh -s /bin/zsh "$USER"
 fi
 
-if [ $MACOS ]
-then
-  $SCRIPTSREL/../install/mac.sh
-fi
+"$SCRIPTSREL/../install/mac.sh"

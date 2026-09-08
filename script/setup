@@ -14,22 +14,20 @@ else
 fi
 
 DOTFILESDIRREL="$(dirname "$SCRIPTSETUP")"
+# shellcheck source=script/platform.sh
+. "$DOTFILESDIRREL/platform.sh"
 cd "$DOTFILESDIRREL/../home"
 DOTFILESDIR="$(pwd -P)"
 
-case "$(uname -s)" in
-  Darwin) export MACOS=1 UNIX=1 ;;
-  Linux) export LINUX=1 UNIX=1 ;;
-  *_NT-*) export WINDOWS=1 ;;
-esac
-
-if [[ -n "${MACOS:-}" && -z "${DOTFILES_SKIP_BREW:-}" ]]; then
+if [[ -z "${DOTFILES_SKIP_BREW:-}" ]]; then
+  if [[ ! -x /opt/homebrew/bin/brew ]]; then
+    echo "Homebrew is missing. Run script/strap first, or use DOTFILES_SKIP_BREW=1 to link only." >&2
+    exit 1
+  fi
+  brew_env="$(/opt/homebrew/bin/brew shellenv)"
+  eval "$brew_env"
   echo "Installing from user Brewfile"
   brew bundle check --file .Brewfile || brew bundle --verbose --file .Brewfile
-
-  if [[ "$(uname -m)" == "x86_64" ]]; then
-    "$DOTFILESDIR/../install/github-cli.sh"
-  fi
 fi
 
 BACKUP_ROOT="${DOTFILES_BACKUP_ROOT:-$HOME/.dotfiles-backups/$(date +%Y%m%d-%H%M%S)-$$}"
@@ -53,45 +51,41 @@ for DOTFILE in .[^.]* .[^.]*/* .[^.]*/.[^.]* .[^.]*/[^.]*/[^.]*; do
   # Skip unmatched glob patterns.
   [[ -e "$DIRFILE" || -L "$DIRFILE" ]] || continue
 
-  if [[ -n "${UNIX:-}" ]]; then
-    if [[ -d "$DIRFILE" ]]; then
-      if [[ -e "$HOMEFILE" || -L "$HOMEFILE" ]]; then
-        if [[ ! -d "$HOMEFILE" || -L "$HOMEFILE" ]]; then
-          backup_home_path "$DOTFILE"
-        fi
-      fi
-      mkdir -p "$HOMEFILE"
-      continue
-    fi
-
-    # Codex owns and may protect ~/.codex. Keep its global instructions as a
-    # regular file so app permissions and sandbox grants never traverse a
-    # managed symlink.
-    if [[ "$DOTFILE" == ".codex/AGENTS.md" ]]; then
-      if [[ -f "$HOMEFILE" && ! -L "$HOMEFILE" ]] && cmp -s "$DIRFILE" "$HOMEFILE"; then
-        continue
-      fi
-      if [[ -e "$HOMEFILE" || -L "$HOMEFILE" ]]; then
+  if [[ -d "$DIRFILE" ]]; then
+    if [[ -e "$HOMEFILE" || -L "$HOMEFILE" ]]; then
+      if [[ ! -d "$HOMEFILE" || -L "$HOMEFILE" ]]; then
         backup_home_path "$DOTFILE"
       fi
-      mkdir -p "$(dirname "$HOMEFILE")"
-      cp -v "$DIRFILE" "$HOMEFILE"
+    fi
+    mkdir -p "$HOMEFILE"
+    continue
+  fi
+
+  # Codex owns and may protect ~/.codex. Keep its global instructions as a
+  # regular file so app permissions and sandbox grants never traverse a
+  # managed symlink.
+  if [[ "$DOTFILE" == ".codex/AGENTS.md" ]]; then
+    if [[ -f "$HOMEFILE" && ! -L "$HOMEFILE" ]] && cmp -s "$DIRFILE" "$HOMEFILE"; then
       continue
     fi
-
-    if [[ -L "$HOMEFILE" && -e "$HOMEFILE" ]] && [[ "$HOMEFILE" -ef "$DIRFILE" ]]; then
-      continue
-    fi
-
     if [[ -e "$HOMEFILE" || -L "$HOMEFILE" ]]; then
       backup_home_path "$DOTFILE"
     fi
-
     mkdir -p "$(dirname "$HOMEFILE")"
-    ln -sv "$DIRFILE" "$HOMEFILE"
-  else
-    cp -rv "$DIRFILE" "$HOMEFILE"
+    cp -v "$DIRFILE" "$HOMEFILE"
+    continue
   fi
+
+  if [[ -L "$HOMEFILE" && -e "$HOMEFILE" ]] && [[ "$HOMEFILE" -ef "$DIRFILE" ]]; then
+    continue
+  fi
+
+  if [[ -e "$HOMEFILE" || -L "$HOMEFILE" ]]; then
+    backup_home_path "$DOTFILE"
+  fi
+
+  mkdir -p "$(dirname "$HOMEFILE")"
+  ln -sv "$DIRFILE" "$HOMEFILE"
 done
 
 if [[ -n "$BACKUP_CREATED" ]]; then

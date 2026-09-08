@@ -1,5 +1,11 @@
 #!/bin/sh
+# shellcheck source=script/platform.sh
+. "$(dirname "$0")/platform.sh" || exit 1
+
 set -e
+
+brew_env="$(/opt/homebrew/bin/brew shellenv)"
+eval "$brew_env"
 
 brew update
 brew bundle --global

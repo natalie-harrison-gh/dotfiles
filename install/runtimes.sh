@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# shellcheck source=script/platform.sh
+. "$(dirname "$0")/../script/platform.sh" || exit 1
+
 # Provision language runtimes. Interactive: installs the latest node/ruby/rust
 # (and uv) via asdf and pins them in ~/.tool-versions. Python is managed by uv,
 # not asdf — installed after uv is in place.

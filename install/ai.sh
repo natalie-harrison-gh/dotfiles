@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# shellcheck source=script/platform.sh
+. "$(dirname "$0")/../script/platform.sh" || exit 1
+
 # Reinstall the AI CLIs via their self-updating standalone installers, then
 # restore agent skills. Re-runnable: each installer updates in place. Not run by
 # strap (interactive + needs logins) — invoke manually when reprovisioning.

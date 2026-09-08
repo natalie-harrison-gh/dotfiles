@@ -1,4 +1,7 @@
 #!/bin/bash
+# shellcheck source=script/platform.sh
+. "$(dirname "$0")/../script/platform.sh" || exit 1
+
 
 # Close any open System Settings panes, to prevent them from overriding
 # settings we’re about to change

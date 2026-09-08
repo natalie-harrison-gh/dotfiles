@@ -1,6 +1,6 @@
 # Working in this repo
 
-This repo provisions a macOS dev environment. Prefer the installed modern tools
+This repo provisions an Apple Silicon macOS dev environment (native arm64 only). Prefer the installed modern tools
 over the common defaults.
 
 ## Prefer these tools
